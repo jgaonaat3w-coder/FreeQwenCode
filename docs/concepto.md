@@ -230,6 +230,49 @@ El principio vale también fuera de la investigación. En programación, la veri
 
 Sin `gemma4:26b` suman unos 34 GB, con holgura. Con él cargado rondan los 51 GB más su caché y los buffers, muy cerca del límite de 56 GB. Si hace falta margen, la caché de Qwen en q8_0 libera unos 6 GB. Un solo `qwen3.8:27b` con varios huecos sirve al principal y a los subagentes sin duplicar pesos.
 
+## Secciones y pantallas
+
+**Estado:** propuesta pendiente de acordar, salvo lo marcado como acordado.
+
+### Barra lateral
+
+| Grupo | Sección | Para qué |
+|---|---|---|
+| Arriba | Nuevo | Una sola caja de entrada. El sistema detecta qué hace falta, elige la sección y muestra la elección para poder cambiarla |
+| Trabajo | Chat | Conversación rápida sin herramientas. En una primera fase puede abrir la app de Ollama, con la misma ventana de contexto que el resto para no forzar recargas |
+| Trabajo | Código | Agente de programación |
+| Trabajo | Investigación | Corpus, hipótesis y hallazgos con procedencia |
+| Trabajo | Oficina | Documentos. Absorbe lo que sería Cowork, porque la app de Ollama no tiene herramientas y no puede hacerlo |
+| Conocimiento | Biblioteca | Índice de los documentos propios, con búsqueda y respuestas con citas verificadas. La consultan todas las secciones |
+| Conocimiento | Proyectos | Memoria, reglas, glosario y ficheros de cada proyecto |
+| Herramientas | Lectura | Texto a partir de PDF e imágenes: capa de texto con PDFKit cuando existe, `qwen3.8:27b` con visión cuando es un escaneo |
+| Herramientas | Imágenes | Generación con la instalación local de Qwen que ya existe para otra aplicación |
+| Herramientas | Voz | Opcional. Transcripción con `faster-whisper`, que ya está instalado |
+| Sistema | Rutinas | Tareas programadas, buen sitio para lo pesado |
+| Sistema | Actividad | Tareas en marcha, cola, modelos cargados y memoria ocupada |
+| Abajo | Personalización | Instrucciones, idioma, modelos, permisos, conectores y datos para formularios |
+
+Las herramientas no son islas. Lectura, Imágenes y Voz tienen pantalla propia para usarlas directamente, pero cualquier sección puede invocarlas.
+
+### Oficina
+
+**Acordado:** las funciones de oficina propuestas, salvo los carruseles de LinkedIn, que pertenecen a PyLinkedin. Prioridad para informes, traducciones, comparar versiones, rellenar formularios y la biblioteca.
+
+La pantalla de Oficina muestra primero las cuatro funciones prioritarias y debajo el resto: hojas de cálculo, facturas y tickets a tabla, diagramas y presentaciones. Cada función abre un espacio de trabajo con la misma estructura en tres columnas:
+
+- **Entradas:** los ficheros y fuentes de datos, arrastrados o tomados de la Biblioteca.
+- **Resultado:** la vista previa del documento.
+- **Comprobaciones:** la lista de verificaciones con su estado. Es la parte visible del principio de veracidad, y el documento no se da por terminado con una comprobación en rojo.
+
+| Función | Entradas | Resultado | Comprobaciones |
+|---|---|---|---|
+| Informes | Datos, documentos de la Biblioteca, resultados de Investigación | PDF o Word con gráficos generados por código | Cada cifra enlazada a su cálculo, cada cita verificada |
+| Traducciones | Documento, idioma de destino, glosario del proyecto | Documento traducido con el mismo formato, en vista paralela | Misma estructura, todos los números y nombres propios conservados, glosario respetado |
+| Comparar versiones | Dos versiones de un documento | Diferencias literales calculadas por código y un resumen de las relevantes | Cada cambio del resumen apunta a una diferencia literal |
+| Rellenar formularios | Formulario PDF o plantilla de Word, datos guardados en Personalización | Formulario rellenado | Campos leídos de vuelta, obligatorios vacíos marcados, nada se envía ni se firma solo |
+
+Dos límites conocidos: traducir un PDF conservando su maquetación exacta es difícil, así que la salida natural es Word o un PDF nuevo. Y los formularios escaneados sin campos rellenables quedan para una segunda fase.
+
 ## Capa de inferencia
 
 Ollama ya usa `llama-server` por dentro. La cuestión es si el harness habla con Ollama o directamente con `llama-server`.
@@ -264,6 +307,8 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
 6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
 7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
+8. **Secciones:** si la Biblioteca va como sección propia, si Oficina absorbe Cowork y si el Chat empieza en la app de Ollama.
+9. **Imágenes y voz:** cómo llamar a la instalación local de Qwen que ya existe y cómo repartir la memoria con esa otra aplicación.
 
 ## Mediciones pendientes
 
