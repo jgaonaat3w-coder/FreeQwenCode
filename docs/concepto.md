@@ -322,9 +322,14 @@ La memoria nunca cambia qué modelo hace un trabajo, solo cuándo se hace. Por e
 
 Actividad muestra la memoria ocupada por cada modelo, el valor de su caché, la cola y el registro de decisiones con su motivo. Desde ahí se puede fijar un modelo para que no se descargue. Personalización guarda el margen reservado, los modelos fijados y las horas para trabajos pesados.
 
-### Relación con ArchonHub
+### Inspiración de ArchonHub
 
-ArchonHub ya tiene piezas útiles: un catálogo de huellas medidas, la carga y descarga explícitas con `keep_alive` y la posición de pasarela. Su ventana adaptativa por petición es justo lo que hay que evitar. Sus huellas se midieron con `/api/ps`, así que probablemente no incluyen la caché KV y habría que medirlas de nuevo.
+**Acordado:** ArchonHub solo sirve como fuente de inspiración y probablemente se retire. El gestor de memoria vive en FreeQwenCode.
+
+- **Ideas que se toman:** un catálogo de huellas de memoria por modelo, la carga y descarga explícitas con `keep_alive`, y la posición de pasarela delante de Ollama.
+- **Lo que se evita:** elegir modelo y ventana en cada petición, porque obliga a recargar y tira la caché.
+- **Lo que no se puede aprovechar tal cual:** sus huellas se midieron con `/api/ps`, que no incluye la caché KV con el runner actual.
+- **Al retirarlo:** dos servicios del sistema llevan su nombre pero sirven a todo el equipo y deben conservarse. Uno fija al arrancar el límite de 56 GB de memoria para la GPU. El otro fija las variables de entorno de Ollama.
 
 ## Capa de inferencia
 
@@ -358,11 +363,12 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 3. **Interfaz:** VS Code, app de escritorio o editor vía ACP. Tiene que poder cambiar de vista según el modo.
 4. **Modelo principal:** acordado. `qwen3.8:27b` por defecto y `gemma4:26b` como herramienta con salida verificada. Solo se revisa si la evaluación en buenas condiciones lo justifica.
 5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
-6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
+6. **Relación con ArchonHub:** acordado. Solo inspiración, y probablemente se retire.
 7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
 8. **Secciones:** si la Biblioteca va como sección propia, si Oficina absorbe Cowork y si el Chat empieza en la app de Ollama.
 9. **Imágenes y voz:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, y cómo repartir la memoria entre generar imágenes y los modelos de lenguaje.
-10. **Gestor de memoria:** si vive en FreeQwenCode o en ArchonHub, si todas las aplicaciones pasan por él, Roo incluido, y a partir de qué coste pregunta al usuario.
+10. **Gestor de memoria:** vive en FreeQwenCode. Falta acordar si todas las aplicaciones pasan por él, Roo incluido, y a partir de qué coste pregunta al usuario.
+11. **Modelos equivalentes:** qué modelos se declaran intercambiables para cada tipo de petición. La propuesta de partida es ninguno, hasta que una evaluación lo justifique.
 
 ## Mediciones pendientes
 
