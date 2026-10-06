@@ -125,7 +125,7 @@ El entorno no es un único agente con un único comportamiento. Es un conjunto d
 |---|---|---|
 | Conversación | El usuario está delante y pide cambios acotados o hace preguntas | Modelo principal, respuestas breves, permiso antes de lo destructivo |
 | Misión | «Sigue con lo pendiente», una cola de tareas, trabajo de horas | Plan explícito, puntos de control, revisión por un supervisor en cada hito, aviso al terminar o al atascarse |
-| Investigación | Proyecto de corpus, preguntas sobre el texto | Herramientas de búsqueda y cita, cada afirmación con su fuente, incertidumbre explícita |
+| Investigación | Proyecto de corpus, preguntas sobre el texto | `gemma4:26b` como principal, cálculos delegados a subagentes Qwen, cada afirmación con su fuente, incertidumbre explícita |
 | Consulta rápida | Preguntas cortas sin relación con la tarea en curso | Modelo rápido, sin tocar la conversación principal |
 
 ### Cómo se detecta
@@ -137,17 +137,60 @@ El entorno no es un único agente con un único comportamiento. Es un conjunto d
 
 ### Subagentes como mecanismo de enrutado
 
-La forma de usar otro modelo sin romper la caché es delegar una subtarea completa. El subagente trabaja con otro modelo y su propio contexto, y devuelve un resultado corto que se añade al final de la conversación principal. Explorar el código, buscar en el corpus o ejecutar los tests y resumir el resultado son buenos candidatos.
+La forma de usar otro modelo sin romper la caché es delegar una subtarea completa. El subagente trabaja con otro modelo y su propio contexto, y devuelve un resultado corto que se añade al final de la conversación principal. Explorar el código, buscar en el corpus, calcular sobre él o ejecutar los tests y resumir el resultado son buenos candidatos.
 
-### Memoria: tres huecos
+### Memoria en modo programación: tres huecos
 
 | Hueco | Modelo | Ventana | Pesos | Caché KV en f16 | Caché KV en q8_0 |
 |---|---|---|---|---|---|
 | Fijo, nunca se desaloja | `qwen3.8:27b`, principal | 131.072 | 17 GB | 8,5 GB | 4,3 GB |
-| Intercambiable | `gemma4:26b` para subagentes y supervisión | 65.536 | 17 GB | Por medir, pequeña | Por medir |
+| Intercambiable | `gemma4:26b` para leer documentación y texto largo, o `qwen3-coder:30b` para subtareas cortas de código | 65.536 | 17 a 18 GB | Por medir | Por medir |
 | Pequeño, fijo | `qwen3:4b`, clasificador y tareas auxiliares | 16.384 | 2,5 GB | 2,3 GB | 1,2 GB |
 
-Son estimaciones. `gemma4:26b` ocupa el hueco intercambiable porque es el más rápido con contexto largo, y su caché es pequeña porque la mayoría de sus capas usan atención de ventana deslizante. `qwen3-coder:30b` solo compensa en subtareas cortas que escriben mucho. Que el supervisor sea de otra familia que el principal ayuda a que no compartan los mismos errores. Sin la caché de `gemma4:26b`, los otros dos huecos ocupan unos 30 GB en f16, así que el total depende de lo que mida esa caché. El hueco intercambiable se recarga solo en límites de tarea, y perder su caché es barato porque cada subtarea empieza con contexto propio.
+Son estimaciones. En programación, `gemma4:26b` solo lee texto en lenguaje natural, nunca escribe ni revisa código. `qwen3-coder:30b` compensa en subtareas cortas de código, donde su contexto corto evita el hundimiento que sufre con contexto largo. Sin el hueco intercambiable, los otros dos ocupan unos 30 GB en f16, así que el total depende de qué modelo lo ocupe y de su caché. El hueco intercambiable se recarga solo en límites de tarea, y perder su caché es barato porque cada subtarea empieza con contexto propio.
+
+## Combinación de modelos por fortalezas
+
+Cada modelo se usa donde es fuerte y nunca donde no se confía en él. La matriz mezcla las mediciones con la experiencia de uso: `gemma4:26b` tiende a ser demasiado creativo para programar o calcular.
+
+| Capacidad | `qwen3.8:27b` | `gemma4:26b` | `qwen3-coder:30b` | `qwen3:4b` |
+|---|---|---|---|---|
+| Leer texto largo | Lento | Fuerte y rápido | Se hunde con contexto largo | No |
+| Escribir código | De confianza | No fiable | Rápido con contexto corto | No |
+| Calcular y verificar | De confianza | No fiable | Solo escribiendo código | No |
+| Proponer hipótesis | Sin evaluar | Fuerte, por su creatividad | Sin evaluar | No |
+| Clasificar y tareas pequeñas | Sobra | Sobra | Sobra | Suficiente |
+
+### Modo investigación: lector creativo, calculadores precisos
+
+- **`gemma4:26b` es el principal.** Lee el corpus, las notas y la bibliografía con contexto largo, propone hipótesis y decide qué hay que calcular.
+- **Los cálculos los hacen subagentes Qwen escribiendo código.** La cifra sale de ejecutar un script sobre el corpus, nunca de que un modelo cuente. Con un texto como la transcripción EVA del Voynich es imprescindible, porque ningún modelo cuenta glifos de forma fiable: el tokenizador parte esas palabras de manera arbitraria.
+- **La verificación es independiente.** Un segundo subagente Qwen, con contexto limpio, reimplementa el cálculo sin ver el primer script, y se comparan las salidas. Si no coinciden, el resultado no cuenta. El verificador comprueba además que la conclusión se sigue de las cifras.
+- **El corpus se identifica por su huella.** Cada script comprueba el SHA-256 del corpus canónico antes de calcular, de modo que cualquier resultado se puede reproducir.
+
+### Salvaguardas contra la creatividad del principal
+
+El riesgo de esta combinación es que el modelo creativo es el que habla con el usuario. Puede adornar un resultado al resumirlo o dar por buena una afirmación sin mandarla verificar. Las salvaguardas son del harness, no del modelo:
+
+1. **Hipótesis y hallazgos van en registros separados.** Una hipótesis puede ser todo lo creativa que se quiera si está marcada como tal. Un hallazgo exige pruebas.
+2. **Las cifras no se transcriben, se enlazan.** El principal escribe una referencia al resultado y el harness inserta el valor verificado. Así ningún número pasa por el texto libre del modelo creativo.
+3. **Cada afirmación lleva su procedencia.** Puede ser un cálculo verificado, con su script y su salida, o una cita del corpus con folio y línea. La interfaz marca las afirmaciones sin procedencia.
+4. **Un control determinista revisa cada respuesta.** Busca cifras sin referencia y citas que no existen en el corpus. Para eso no hace falta un modelo.
+5. **La temperatura depende del paso.** Alta para proponer hipótesis, baja para orquestar y resumir.
+
+### Lo verificable se verifica ejecutando
+
+El principio vale también fuera de la investigación. En programación, la verificación son los tests, el linter y la compilación, no la opinión de un modelo. Por eso el supervisor de las misiones de código no es `gemma4:26b`: son los tests más un Qwen con contexto limpio que revisa el diff. Un revisor de la misma familia comparte puntos ciegos con el autor, y la ejecución lo compensa.
+
+### Memoria en modo investigación
+
+| Hueco | Modelo | Ventana | Pesos | Caché KV en f16 |
+|---|---|---|---|---|
+| Principal | `gemma4:26b` | 131.072 | 17 GB | Por medir, pequeña |
+| Subagentes | `qwen3.8:27b` con dos huecos de 32.768 | 65.536 en total | 17 GB | 4 GB |
+| Pequeño | `qwen3:4b` | 16.384 | 2,5 GB | 2,3 GB |
+
+Suman unos 43 GB más la caché de `gemma4:26b` y los buffers, así que caben. Los subagentes trabajan con contexto corto, que es donde los Qwen son rápidos. Un solo `qwen3.8:27b` con dos huecos atiende a la vez al que calcula y al que verifica, sin duplicar pesos.
 
 ## Capa de inferencia
 
@@ -179,16 +222,18 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 1. **Base del harness:** adaptar OpenCode, usar una extensión de VS Code o escribir un harness propio.
 2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo.
 3. **Interfaz:** VS Code, app de escritorio o editor vía ACP. Tiene que poder cambiar de vista según el modo.
-4. **Modelo principal por modo:** `qwen3.8:27b` sigue siendo el principal para programar por calidad. En investigación sobre textos largos, `gemma4:26b` es candidato a principal por velocidad, si su calidad sobre el corpus resulta suficiente.
+4. **Modelo principal por modo:** `qwen3.8:27b` para programar. `gemma4:26b` para investigar, como lector y orquestador, con los cálculos y la verificación delegados a subagentes Qwen.
 5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
 6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
+7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
 
 ## Mediciones pendientes
 
 - Repetir `qwen3-coder:30b` y `gemma4:26b` con 25k tokens y la máquina sin otro uso.
 - Confirmar el pico inicial: repetir con el Mac en reposo y revisar el modo de energía.
 - Tamaño real de la caché KV de `gemma4:26b`, en la línea `llama_kv_cache` del log.
-- Calidad de `gemma4:26b` frente a `qwen3.8:27b` en tareas reales de código y de corpus.
+- Evaluación del modo investigación con preguntas del corpus de respuesta conocida, comparando `gemma4:26b` solo, `qwen3.8:27b` solo y la combinación. Se mide el acierto y el número de afirmaciones inventadas.
+- Fiabilidad de `gemma4:26b` como orquestador: si delega los cálculos o intenta hacerlos él.
 - Generación con y sin flash attention en la versión actual.
 - Reutilización real de la caché entre turnos, comparando en el log los tokens del prompt con los tokens evaluados.
 - Guardar y restaurar la caché en disco con un modelo híbrido en `llama-server`.
