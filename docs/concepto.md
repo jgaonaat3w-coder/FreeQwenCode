@@ -246,7 +246,7 @@ Sin `gemma4:26b` suman unos 34 GB, con holgura. Con él cargado rondan los 51 GB
 | Conocimiento | Biblioteca | Índice de los documentos propios, con búsqueda y respuestas con citas verificadas. La consultan todas las secciones |
 | Conocimiento | Proyectos | Memoria, reglas, glosario y ficheros de cada proyecto |
 | Herramientas | Lectura | Texto a partir de PDF e imágenes: capa de texto con PDFKit cuando existe, `qwen3.8:27b` con visión cuando es un escaneo |
-| Herramientas | Imágenes | Generación con la instalación local de Qwen que ya existe para otra aplicación |
+| Herramientas | Imágenes | Generación y edición con Qwen-Image 2.1, que ya funciona en local para PyLinkedin |
 | Herramientas | Voz | Opcional. Transcripción con `faster-whisper`, que ya está instalado |
 | Sistema | Rutinas | Tareas programadas, buen sitio para lo pesado |
 | Sistema | Actividad | Tareas en marcha, cola, modelos cargados y memoria ocupada |
@@ -270,6 +270,15 @@ La pantalla de Oficina muestra primero las cuatro funciones prioritarias y debaj
 | Traducciones | Documento, idioma de destino, glosario del proyecto | Documento traducido con el mismo formato, en vista paralela | Misma estructura, todos los números y nombres propios conservados, glosario respetado |
 | Comparar versiones | Dos versiones de un documento | Diferencias literales calculadas por código y un resumen de las relevantes | Cada cambio del resumen apunta a una diferencia literal |
 | Rellenar formularios | Formulario PDF o plantilla de Word, datos guardados en Personalización | Formulario rellenado | Campos leídos de vuelta, obligatorios vacíos marcados, nada se envía ni se firma solo |
+
+### Imágenes
+
+Qwen-Image 2.1 ya funciona en local para PyLinkedin. Según lo publicado, es un modelo de 7B que genera y edita con hasta 10 imágenes de referencia, saca 2048 × 2048 de forma nativa, produce PNG con transparencia y escribe texto mejor que versiones anteriores. En Mac solo hay ports de la comunidad, como mflux.
+
+- **Memoria exclusiva.** En bf16 se han publicado picos de unos 46 GB en un M5 Max de 64 GB. No cabe junto a `qwen3.8:27b`, así que generar imágenes exige descargar los modelos de lenguaje o esperar a que estén libres. Actividad lo coordina, y los lotes grandes van bien en Rutinas.
+- **Un único servicio compartido.** PyLinkedin y FreeQwenCode no deben cargar cada uno su copia. Un solo proceso con el modelo y una cola de trabajos atiende a las dos aplicaciones.
+- **Texto dentro de las imágenes verificado.** Lectura lee de vuelta el texto de cada imagen generada y lo compara con el pedido.
+- **Licencia.** Qwen-Image 2.1 se publicó con la licencia de investigación de Qwen, no con Apache 2.0, y el uso comercial necesita un acuerdo aparte.
 
 Dos límites conocidos: traducir un PDF conservando su maquetación exacta es difícil, así que la salida natural es Word o un PDF nuevo. Y los formularios escaneados sin campos rellenables quedan para una segunda fase.
 
@@ -308,7 +317,7 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
 7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
 8. **Secciones:** si la Biblioteca va como sección propia, si Oficina absorbe Cowork y si el Chat empieza en la app de Ollama.
-9. **Imágenes y voz:** cómo llamar a la instalación local de Qwen que ya existe y cómo repartir la memoria con esa otra aplicación.
+9. **Imágenes y voz:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, y cómo repartir la memoria entre generar imágenes y los modelos de lenguaje.
 
 ## Mediciones pendientes
 
