@@ -40,10 +40,29 @@ Un entorno de programación agéntica lo más parecido posible a Claude Code, co
 | Caché KV | 64 KiB por token en f16, solo en las 16 capas de atención | Log de llama-server |
 | Caché KV a 262.144 | 16 GiB, más 1 GiB de la capa MTP | Log de llama-server |
 | Memoria total a 262.144 | Unos 35 GB | Estimación |
-| Prefill | Unos 294 tokens/s | Medido en septiembre de 2026 sobre 64.800 tokens |
-| Generación | 28 tokens/s sin flash attention, 21,5 con ella | Medido en septiembre de 2026 con una versión anterior de Ollama |
+| Prefill | Entre 292 y 344 tokens/s | Medido en octubre de 2026 sobre 24.500 tokens. En septiembre, 294 sobre 64.800 |
+| Generación | Entre 15 y 21 tokens/s, con flash attention y sin razonamiento | Medido en octubre de 2026. En septiembre, 28 sin flash attention y 21,5 con ella |
+| Carga | 5,5 s con ventana de 131.072, 47 s con 262.144 | Medido en octubre de 2026. Con 262.144, Ollama desactiva mmap |
 | Lote de prefill | 2048 con ventana de 49.152, 512 con ventana de 262.144 | Log de llama-server, elegido por Ollama |
 | Puntos de control de caché | Activos: hasta 32, separados al menos 8192 tokens | Log de llama-server |
+
+### Comparativa de velocidad
+
+Medida el 6 de octubre de 2026 con Ollama 0.35.1, un prompt de unos 24.500 tokens sin caché, 256 tokens generados y sin razonamiento. Es una sola pasada por configuración, con la temperatura por defecto de cada modelo. Además, pudo coincidir con otro uso de `qwen3.8:27b` en la misma máquina, así que las cifras pueden estar contaminadas por recargas o por competir por la GPU.
+
+| Modelo | Ventana | Carga | Prefill | Generación |
+|---|---|---|---|---|
+| `qwen3.8:27b` | 131.072 | 5,5 s | 292 t/s | 15,2 t/s |
+| `qwen3.8:27b` | 262.144 | 46,9 s | 344 t/s | 21,3 t/s |
+| `qwen3-coder:30b` | 131.072 | 9,1 s | 487 t/s | 39,8 t/s |
+| `gemma4:26b` | 131.072 | 7,4 s | 766 t/s | 22,8 t/s |
+
+Lo que se deduce, con la cautela de una sola pasada:
+
+- **Los MoE son más rápidos, pero no varias veces en todo.** `gemma4:26b` procesa prompts entre 2,2 y 2,6 veces más rápido que `qwen3.8:27b`. `qwen3-coder:30b` genera unas 2 veces más rápido, y en prefill solo le saca entre 1,4 y 1,7 veces.
+- **Cada MoE destaca en una cosa.** `gemma4:26b` en leer, probablemente porque la mayoría de sus capas usan atención de ventana deslizante. `qwen3-coder:30b` en escribir.
+- **El resultado de `qwen3.8:27b` a 262.144 contradice lo esperado.** Con un lote de prefill menor fue más rápido en las dos fases. Puede deberse al orden, a la lectura del modelo desde disco en la primera pasada, a la variabilidad de la generación especulativa con temperatura 1 o a la otra carga de trabajo. Hay que repetirlo.
+- **Un turno típico de agente**, con 5.000 tokens nuevos y 500 generados, tarda entre 38 y 50 s con `qwen3.8:27b`, unos 23 s con `qwen3-coder:30b` y unos 28 s con `gemma4:26b`. Sin contar razonamiento.
 
 ## Lo que enseñó el diagnóstico de Roo Code con Ollama
 
@@ -93,6 +112,7 @@ Su repositorio se archivó el 15 de mayo de 2026. El propio proyecto remite a Zo
 9. **Retomar sin reprocesar.** Al pausar una tarea larga, el estado del hueco de inferencia se guarda en disco y se restaura al retomarla. `llama-server` lo permite. Ollama no lo expone.
 10. **Enrutar por tarea, no por mensaje.** El modelo solo cambia al empezar una tarea, al lanzar un subagente o después de compactar. Cambiarlo a mitad de conversación cuesta minutos de prefill. ArchonHub, el router anterior, lo sufría porque elegía modelo y ventana en cada petición.
 11. **Ningún modelo se carga ni se descarga en el camino crítico.** Los modelos que se usan a diario están residentes con su ventana fija. Cargar otro es una decisión deliberada en un límite de tarea.
+12. **El razonamiento se dosifica por modo.** Cada token de razonamiento cuesta lo mismo que uno de respuesta. En conversación conviene bajo o apagado. En misión e investigación, medio o alto.
 
 ## Detección automática del modo
 
@@ -123,10 +143,10 @@ La forma de usar otro modelo sin romper la caché es delegar una subtarea comple
 | Hueco | Modelo | Ventana | Pesos | Caché KV en f16 | Caché KV en q8_0 |
 |---|---|---|---|---|---|
 | Fijo, nunca se desaloja | `qwen3.8:27b`, principal | 131.072 | 17 GB | 8,5 GB | 4,3 GB |
-| Intercambiable | MoE rápido para subagentes, o el supervisor de misiones | 65.536 | 18 GB | 6 GB | 3 GB |
+| Intercambiable | `gemma4:26b` para subtareas de lectura y supervisión, o `qwen3-coder:30b` para subtareas de escritura | 65.536 | 18 GB | 6 GB | 3 GB |
 | Pequeño, fijo | `qwen3:4b`, clasificador y tareas auxiliares | 16.384 | 2,5 GB | 2,3 GB | 1,2 GB |
 
-Son estimaciones. En f16 suman unos 54 GB más los buffers de cálculo, que no caben en los 56 GB disponibles. Con la caché en q8_0 bajan a unos 46 GB, más buffers. El hueco intercambiable se recarga solo en límites de tarea, y perder su caché es barato porque cada subtarea empieza con contexto propio.
+Son estimaciones, y las del hueco intercambiable corresponden a `qwen3-coder:30b`. Que el supervisor sea de otra familia que el principal ayuda a que no compartan los mismos errores. En f16 suman unos 54 GB más los buffers de cálculo, que no caben en los 56 GB disponibles. Con la caché en q8_0 bajan a unos 46 GB, más buffers. El hueco intercambiable se recarga solo en límites de tarea, y perder su caché es barato porque cada subtarea empieza con contexto propio.
 
 ## Capa de inferencia
 
@@ -158,14 +178,14 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 1. **Base del harness:** adaptar OpenCode, usar una extensión de VS Code o escribir un harness propio.
 2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo.
 3. **Interfaz:** VS Code, app de escritorio o editor vía ACP. Tiene que poder cambiar de vista según el modo.
-4. **Modelo principal:** `qwen3.8:27b`, denso, de más calidad y con prefill lento, frente a los MoE, previsiblemente mucho más rápidos en prefill.
+4. **Modelo principal:** `qwen3.8:27b`, denso, de más calidad y el más lento en todo, frente a los MoE. Las mediciones inclinan a mantenerlo como principal y usar los MoE en subagentes, porque la ventaja de velocidad es real pero no de varias veces.
 5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
 6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
 
 ## Mediciones pendientes
 
-- Prefill y generación de `qwen3.8:27b` con Ollama 0.35.1 a 131.072 y a 262.144, para saber cuánto cuesta el lote de 512.
-- Lo mismo con `qwen3-coder:30b` y `gemma4:26b`.
+- Repetir `qwen3.8:27b` a 131.072 y a 262.144 con temperatura 0, semilla fija y la máquina sin otro uso, y probar 131.072 sin mmap. La primera pasada dio 262.144 como más rápido, al revés de lo esperado.
+- Caída del prefill con prompts de unos 80k tokens en los tres modelos.
 - Generación con y sin flash attention en la versión actual.
 - Reutilización real de la caché entre turnos, comparando en el log los tokens del prompt con los tokens evaluados.
 - Guardar y restaurar la caché en disco con un modelo híbrido en `llama-server`.
