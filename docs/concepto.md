@@ -151,6 +151,8 @@ Son estimaciones. En programación, `gemma4:26b` solo lee texto en lenguaje natu
 
 ## Combinación de modelos por fortalezas
 
+**Estado:** propuesta en discusión, pendiente de acordar. Recoge la preferencia de que Qwen dirija, no una decisión cerrada.
+
 Cada modelo se usa donde es fuerte y nunca donde no se confía en él. La matriz mezcla las mediciones con la experiencia de uso. `gemma4:26b` tiende a ser demasiado creativo y ha dado muchos resultados falsos en el pasado.
 
 | Capacidad | `qwen3.8:27b` | `gemma4:26b` | `qwen3-coder:30b` | `qwen3:4b` |
@@ -251,7 +253,7 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 1. **Base del harness:** adaptar OpenCode, usar una extensión de VS Code o escribir un harness propio.
 2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo.
 3. **Interfaz:** VS Code, app de escritorio o editor vía ACP. Tiene que poder cambiar de vista según el modo.
-4. **Modelo principal:** `qwen3.8:27b` en todos los modos. `gemma4:26b` es una herramienta que se invoca según la petición, con salida verificada, y nunca es fuente de verdad.
+4. **Modelo principal:** la propuesta actual es `qwen3.8:27b` por defecto en todos los modos y `gemma4:26b` como herramienta con salida verificada. Falta acordar si alguna clase de petición justifica otro principal, según lo que diga la evaluación.
 5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
 6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
 7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
@@ -263,6 +265,7 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 - Tamaño real de la caché KV de `gemma4:26b`, en la línea `llama_kv_cache` del log.
 - Evaluación de las estrategias de lectura con preguntas del corpus de respuesta conocida: lectura directa, por partes, recuperación de pasajes y localización con `gemma4:26b`. Se mide acierto, afirmaciones inventadas y tiempo.
 - Tasa de citas de `gemma4:26b` que no superan la verificación literal, por tipo de petición.
+- Repetir con `gemma4:26b` las tareas en las que dio resultados falsos, con el contexto completo y el razonamiento activado, para separar los fallos del modelo de los de configuración.
 - Generación con y sin flash attention en la versión actual.
 - Reutilización real de la caché entre turnos, comparando en el log los tokens del prompt con los tokens evaluados.
 - Guardar y restaurar la caché en disco con un modelo híbrido en `llama-server`.
