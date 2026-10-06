@@ -356,19 +356,28 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 - **Claude Code contra la API compatible con Anthropic de Ollama.** Da la forma exacta, pero solo en terminal, y conviene revisar sus términos de uso.
 - **Harness propio.** Da control total sobre los principios a cambio de construirlo todo.
 
-## Decisiones abiertas
+## Decisiones
 
-1. **Base del harness:** adaptar OpenCode, usar una extensión de VS Code o escribir un harness propio.
-2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo.
-3. **Interfaz:** VS Code, app de escritorio o editor vía ACP. Tiene que poder cambiar de vista según el modo.
-4. **Modelo principal:** acordado. `qwen3.8:27b` por defecto y `gemma4:26b` como herramienta con salida verificada. Solo se revisa si la evaluación en buenas condiciones lo justifica.
-5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
-6. **Relación con ArchonHub:** acordado. Solo inspiración, y probablemente se retire.
-7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
-8. **Secciones:** si la Biblioteca va como sección propia, si Oficina absorbe Cowork y si el Chat empieza en la app de Ollama.
-9. **Imágenes y voz:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, y cómo repartir la memoria entre generar imágenes y los modelos de lenguaje.
-10. **Gestor de memoria:** acordado que vive en FreeQwenCode y que FreeQwenCode es independiente de Roo. Roo no pasa por el gestor, que lo trata como carga externa. Falta acordar a partir de qué coste pregunta al usuario.
-11. **Modelos equivalentes:** qué modelos se declaran intercambiables para cada tipo de petición. La propuesta de partida es ninguno, hasta que una evaluación lo justifique.
+### Acordadas
+
+1. **Base del código:** núcleo propio. OpenCode y Qwen Code sirven solo como referencia.
+2. **Interfaz:** aplicación propia e independiente, no una extensión de VS Code ni un editor por ACP. Se empieza con una aplicación web local que se abre en el navegador, y más adelante se puede empaquetar como app de escritorio.
+3. **Lenguaje:** compilado, que produzca un ejecutable autónomo y no distribuya el código fuente. Falta confirmar cuál.
+4. **Orden de construcción:** gestor de memoria y Lectura, después Código, Biblioteca, las cuatro funciones prioritarias de Oficina y, al final, Investigación, Imágenes y Rutinas.
+5. **Modelo principal:** `qwen3.8:27b` por defecto y `gemma4:26b` como herramienta con salida verificada. Solo se revisa si la evaluación en buenas condiciones lo justifica.
+6. **Detección del modo:** reglas y un clasificador pequeño para el modo de cada tarea, y el agente principal para lanzar subagentes dentro de ella.
+7. **Secciones:** la Biblioteca va como sección propia, Oficina absorbe lo que iba a ser Cowork y el Chat empieza en la app de Ollama con la misma ventana de contexto que el resto.
+8. **ArchonHub:** solo inspiración, y probablemente se retire.
+9. **Gestor de memoria:** vive en FreeQwenCode, que es independiente de Roo. Roo es carga externa. El gestor pregunta antes de cualquier decisión que cueste más de un minuto de reprocesado.
+10. **Modelos equivalentes:** ninguno, hasta que una evaluación lo justifique.
+11. **Plan:** se genera fuera de Claude Code local, asignando el agente adecuado a cada tarea, y se traspasa con un prompt.
+
+### Pendientes
+
+1. **Lenguaje concreto** que cumpla la decisión 3.
+2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo. Se decide con la medición de guardar y restaurar la caché.
+3. **Convivencia de modos:** una única configuración de `qwen3.8:27b` con varios huecos y caché KV unificada, o una recarga en cada cambio.
+4. **Imágenes:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, según cómo la llama hoy PyLinkedin.
 
 ## Mediciones pendientes
 
