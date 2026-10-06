@@ -282,6 +282,39 @@ Qwen-Image 2.1 ya funciona en local para PyLinkedin. Según lo publicado, es un 
 
 Dos límites conocidos: traducir un PDF conservando su maquetación exacta es difícil, así que la salida natural es Word o un PDF nuevo. Y los formularios escaneados sin campos rellenables quedan para una segunda fase.
 
+## Gestor de memoria
+
+**Estado:** propuesta pendiente de acordar.
+
+Casi todos los problemas del diagnóstico vinieron de cargas sin coordinar: ventanas distintas que obligaban a recargar, pruebas que descargaban modelos en uso y aplicaciones que compiten por los mismos 56 GB. El gestor de memoria decide qué modelos se cargan, cuáles se descargan y cuáles conviven.
+
+### Condiciones para que funcione
+
+1. **Todo el tráfico pasa por él.** Un gestor que no ve las peticiones solo puede observar. Debe actuar como pasarela compatible con la API de Ollama, para que Roo, PyLinkedin y FreeQwenCode se conecten a él sin cambios. Lo que no pase por él se trata como carga externa.
+2. **Decide con código y datos medidos, no con un modelo.** Es una política determinista y explicable.
+3. **Sus huellas de memoria son reales.** `ollama ps` no refleja la caché KV con el runner actual, así que las huellas se miden con el log de `llama-server` y con la memoria del proceso.
+
+### Qué pondera
+
+El coste de descargar un modelo no es volver a cargar sus pesos, que con `qwen3.8:27b` tarda unos 4 s. Es perder su caché. Un `qwen3.8:27b` con una conversación de 80k tokens en caché vale unos 7 minutos de reprocesado. Un `gemma4:26b` ocioso sin nada en caché vale unos segundos.
+
+### Cómo decide
+
+1. Si el modelo pedido ya está cargado con la configuración correcta, se usa.
+2. Si cabe dejando el margen reservado para macOS y las aplicaciones, se carga en paralelo.
+3. Si no cabe, se buscan modelos para descargar entre los ociosos, empezando por los que tienen menos valor de caché. Nunca se descarga un modelo con una petición en curso.
+4. Antes de descargar un modelo con caché valiosa, se guarda su estado en disco para restaurarlo después en segundos. Esto exige `llama-server` directo.
+5. Si aun así no cabe, se aplica la prioridad: lo interactivo va antes que las misiones, y las misiones antes que las rutinas y los lotes. Lo que espera entra en una cola.
+6. Si la decisión es cara para el usuario, por ejemplo perder una conversación larga para generar una imagen, se le pregunta con el coste estimado y tres opciones: seguir, esperar o programar.
+
+### Lo que se ve
+
+Actividad muestra la memoria ocupada por cada modelo, el valor de su caché, la cola y el registro de decisiones con su motivo. Desde ahí se puede fijar un modelo para que no se descargue. Personalización guarda el margen reservado, los modelos fijados y las horas para trabajos pesados.
+
+### Relación con ArchonHub
+
+ArchonHub ya tiene piezas útiles: un catálogo de huellas medidas, la carga y descarga explícitas con `keep_alive` y la posición de pasarela. Su ventana adaptativa por petición es justo lo que hay que evitar. Sus huellas se midieron con `/api/ps`, así que probablemente no incluyen la caché KV y habría que medirlas de nuevo.
+
 ## Capa de inferencia
 
 Ollama ya usa `llama-server` por dentro. La cuestión es si el harness habla con Ollama o directamente con `llama-server`.
@@ -318,6 +351,7 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
 8. **Secciones:** si la Biblioteca va como sección propia, si Oficina absorbe Cowork y si el Chat empieza en la app de Ollama.
 9. **Imágenes y voz:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, y cómo repartir la memoria entre generar imágenes y los modelos de lenguaje.
+10. **Gestor de memoria:** si vive en FreeQwenCode o en ArchonHub, si todas las aplicaciones pasan por él, Roo incluido, y a partir de qué coste pregunta al usuario.
 
 ## Mediciones pendientes
 
@@ -329,7 +363,8 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 - Repetir con `gemma4:26b` las tareas en las que dio resultados falsos, con el contexto completo y el razonamiento activado, para separar los fallos del modelo de los de configuración.
 - Generación con y sin flash attention en la versión actual.
 - Reutilización real de la caché entre turnos, comparando en el log los tokens del prompt con los tokens evaluados.
-- Guardar y restaurar la caché en disco con un modelo híbrido en `llama-server`.
+- Guardar y restaurar la caché en disco con un modelo híbrido en `llama-server`, y cuánto tarda con 80k tokens.
+- Huellas reales de memoria por modelo y ventana, incluida la caché KV, para el catálogo del gestor.
 - Compactación al final de la conversación, para confirmar que solo procesa la instrucción.
 - Precisión del clasificador de modo sobre peticiones reales. Las tareas guardadas de Roo Code sirven como conjunto de prueba si se etiqueta a mano un centenar.
 - Convivencia de memoria: comprobar que Ollama tiene en cuenta la memoria que ocupa un `llama-server` externo y no sobrecarga la GPU.
