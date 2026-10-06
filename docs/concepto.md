@@ -290,7 +290,7 @@ Casi todos los problemas del diagnóstico vinieron de cargas sin coordinar: vent
 
 ### Condiciones para que funcione
 
-1. **Todo el tráfico pasa por él.** Un gestor que no ve las peticiones solo puede observar. Debe actuar como pasarela compatible con la API de Ollama, para que Roo, PyLinkedin y FreeQwenCode se conecten a él sin cambios. Lo que no pase por él se trata como carga externa.
+1. **Todo el tráfico de FreeQwenCode pasa por él.** Un gestor que no ve las peticiones solo puede observar. Actúa como pasarela compatible con la API de Ollama. Roo queda fuera por decisión: FreeQwenCode es independiente, y lo que no pasa por el gestor se trata como carga externa.
 2. **Decide con código y datos medidos, no con un modelo.** Es una política determinista y explicable.
 3. **Sus huellas de memoria son reales.** `ollama ps` no refleja la caché KV con el runner actual, así que las huellas se miden con el log de `llama-server` y con la memoria del proceso.
 
@@ -367,7 +367,7 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
 8. **Secciones:** si la Biblioteca va como sección propia, si Oficina absorbe Cowork y si el Chat empieza en la app de Ollama.
 9. **Imágenes y voz:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, y cómo repartir la memoria entre generar imágenes y los modelos de lenguaje.
-10. **Gestor de memoria:** vive en FreeQwenCode. Falta acordar si todas las aplicaciones pasan por él, Roo incluido, y a partir de qué coste pregunta al usuario.
+10. **Gestor de memoria:** acordado que vive en FreeQwenCode y que FreeQwenCode es independiente de Roo. Roo no pasa por el gestor, que lo trata como carga externa. Falta acordar a partir de qué coste pregunta al usuario.
 11. **Modelos equivalentes:** qué modelos se declaran intercambiables para cada tipo de petición. La propuesta de partida es ninguno, hasta que una evaluación lo justifique.
 
 ## Mediciones pendientes
