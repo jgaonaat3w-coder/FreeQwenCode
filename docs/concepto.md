@@ -151,7 +151,14 @@ Son estimaciones. En programación, `gemma4:26b` solo lee texto en lenguaje natu
 
 ## Combinación de modelos por fortalezas
 
-**Estado:** propuesta en discusión, pendiente de acordar. Recoge la preferencia de que Qwen dirija, no una decisión cerrada.
+**Estado:** acordado el 6 de octubre de 2026 en cuatro puntos:
+
+1. `qwen3.8:27b` dirige por defecto en todos los modos.
+2. `gemma4:26b` queda disponible como herramienta para la lectura global de textos largos, siempre con el contrato de citas verificadas. Ni prohibido ni de confianza.
+3. Las salvaguardas de veracidad son las mismas para todos los modelos, Qwen incluido.
+4. Antes de ampliar el papel de `gemma4:26b`, se repite su evaluación en buenas condiciones, con el contexto completo y el razonamiento activado.
+
+El resto de la sección desarrolla esos puntos.
 
 Cada modelo se usa donde es fuerte y nunca donde no se confía en él. La matriz mezcla las mediciones con la experiencia de uso. `gemma4:26b` tiende a ser demasiado creativo y ha dado muchos resultados falsos en el pasado.
 
@@ -253,7 +260,7 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 1. **Base del harness:** adaptar OpenCode, usar una extensión de VS Code o escribir un harness propio.
 2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo.
 3. **Interfaz:** VS Code, app de escritorio o editor vía ACP. Tiene que poder cambiar de vista según el modo.
-4. **Modelo principal:** la propuesta actual es `qwen3.8:27b` por defecto en todos los modos y `gemma4:26b` como herramienta con salida verificada. Falta acordar si alguna clase de petición justifica otro principal, según lo que diga la evaluación.
+4. **Modelo principal:** acordado. `qwen3.8:27b` por defecto y `gemma4:26b` como herramienta con salida verificada. Solo se revisa si la evaluación en buenas condiciones lo justifica.
 5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
 6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
 7. **Convivencia de modos:** si se programa mientras corre una investigación, los dos usos comparten `qwen3.8:27b`. Hace falta una única configuración con varios huecos y caché KV unificada, o aceptar una recarga en cada cambio.
