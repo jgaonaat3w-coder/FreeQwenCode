@@ -298,14 +298,25 @@ Casi todos los problemas del diagnóstico vinieron de cargas sin coordinar: vent
 
 El coste de descargar un modelo no es volver a cargar sus pesos, que con `qwen3.8:27b` tarda unos 4 s. Es perder su caché. Un `qwen3.8:27b` con una conversación de 80k tokens en caché vale unos 7 minutos de reprocesado. Un `gemma4:26b` ocioso sin nada en caché vale unos segundos.
 
-### Cómo decide
+### Cómo decide: primero el modelo, después la memoria
 
-1. Si el modelo pedido ya está cargado con la configuración correcta, se usa.
-2. Si cabe dejando el margen reservado para macOS y las aplicaciones, se carga en paralelo.
-3. Si no cabe, se buscan modelos para descargar entre los ociosos, empezando por los que tienen menos valor de caché. Nunca se descarga un modelo con una petición en curso.
-4. Antes de descargar un modelo con caché valiosa, se guarda su estado en disco para restaurarlo después en segundos. Esto exige `llama-server` directo.
-5. Si aun así no cabe, se aplica la prioridad: lo interactivo va antes que las misiones, y las misiones antes que las rutinas y los lotes. Lo que espera entra en una cola.
-6. Si la decisión es cara para el usuario, por ejemplo perder una conversación larga para generar una imagen, se le pregunta con el coste estimado y tres opciones: seguir, esperar o programar.
+La memoria nunca cambia qué modelo hace un trabajo, solo cuándo se hace. Por eso hay dos decisiones separadas, en este orden.
+
+**Fase A. Elegir el modelo adecuado, sin mirar la memoria.**
+
+1. El tipo de petición fija los requisitos: capacidades como visión, código o contexto largo, las reglas de confianza acordadas y la configuración necesaria, que incluye una ventana suficiente para la petición completa y el nivel de razonamiento.
+2. De ahí sale el modelo adecuado. Si ninguno cumple, el sistema lo dice; no improvisa un sustituto.
+3. La disponibilidad solo desempata entre modelos declarados de antemano como equivalentes para ese tipo de petición. Esa lista se acuerda, no se decide sobre la marcha.
+
+**Fase B. Conseguir memoria para ese modelo, sin cambiarlo.**
+
+4. Si el modelo elegido está cargado con la configuración requerida, se usa. Un modelo cargado con otra ventana no sirve: nunca se recorta una petición para que quepa en lo que ya está cargado.
+5. Si cabe dejando el margen reservado para macOS y las aplicaciones, se carga en paralelo.
+6. Si no cabe, se descargan modelos ociosos, empezando por los de menos valor de caché, y antes se guarda en disco la caché valiosa. Nunca se descarga un modelo con una petición en curso.
+7. Si aun así no cabe, se aplica la prioridad: lo interactivo va antes que las misiones, y las misiones antes que las rutinas y los lotes. La petición espera a su modelo en la cola; no se degrada a otro.
+8. Si la espera o la descarga son caras, se pregunta al usuario con el coste estimado: seguir, esperar o programar. Si existe un modelo alternativo, se ofrece de forma explícita con su diferencia de calidad, y solo se usa si el usuario lo acepta.
+
+**Garantía estructural.** La función que elige el modelo no recibe el estado de la memoria como entrada; solo el desempate entre equivalentes declarados lo ve. El registro de decisiones guarda por separado qué modelo se eligió y por qué, y qué acción de memoria se tomó y por qué, para poder auditar que la memoria nunca influyó en la elección.
 
 ### Lo que se ve
 
