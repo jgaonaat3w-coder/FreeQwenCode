@@ -4,12 +4,13 @@
 
 ## Qué buscamos
 
-Un entorno de programación agéntica lo más parecido posible a Claude Code, con cuatro condiciones:
+Un entorno de programación agéntica lo más parecido posible a Claude Code, con cinco condiciones:
 
 - Modelos locales, en concreto los Qwen y Gemma instalados en la máquina de referencia.
 - Interfaz gráfica, no de terminal.
 - Contexto largo utilizable de verdad, no solo nominal.
 - **Detección automática de lo que hace falta en cada momento.** No hay un único uso, así que el entorno debe reconocer el tipo de trabajo y adaptarse sin que haya que configurarlo cada vez.
+- **Agilidad para uso intensivo.** La herramienta se usa entre 10 y 12 horas al día. Los requisitos medibles están en el [plan](plan.md).
 
 "Lo más parecido posible" se refiere a la forma: el bucle agéntico, las herramientas para leer, editar, buscar y ejecutar, los permisos, la memoria de proyecto, los subagentes y la compactación del contexto. La calidad del modelo es otra cuestión. Con un 27B local, lo razonable es esperar un agente de una o dos generaciones atrás.
 
@@ -362,7 +363,7 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 
 1. **Base del código:** núcleo propio. OpenCode y Qwen Code sirven solo como referencia.
 2. **Interfaz:** aplicación propia e independiente, no una extensión de VS Code ni un editor por ACP. Se empieza con una aplicación web local que se abre en el navegador, y más adelante se puede empaquetar como app de escritorio.
-3. **Lenguaje:** compilado, que produzca un ejecutable autónomo y no distribuya el código fuente. Falta confirmar cuál.
+3. **Lenguaje:** núcleo en Swift, compilado en un ejecutable autónomo que no distribuye el código fuente. Interfaz web en TypeScript, compilada y embebida en el ejecutable, sin lógica propia.
 4. **Orden de construcción:** gestor de memoria y Lectura, después Código, Biblioteca, las cuatro funciones prioritarias de Oficina y, al final, Investigación, Imágenes y Rutinas.
 5. **Modelo principal:** `qwen3.8:27b` por defecto y `gemma4:26b` como herramienta con salida verificada. Solo se revisa si la evaluación en buenas condiciones lo justifica.
 6. **Detección del modo:** reglas y un clasificador pequeño para el modo de cada tarea, y el agente principal para lanzar subagentes dentro de ella.
@@ -374,10 +375,9 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 
 ### Pendientes
 
-1. **Lenguaje concreto** que cumpla la decisión 3.
-2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo. Se decide con la medición de guardar y restaurar la caché.
-3. **Convivencia de modos:** una única configuración de `qwen3.8:27b` con varios huecos y caché KV unificada, o una recarga en cada cambio.
-4. **Imágenes:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, según cómo la llama hoy PyLinkedin.
+1. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo. Se decide con la medición de guardar y restaurar la caché.
+2. **Convivencia de modos:** una única configuración de `qwen3.8:27b` con varios huecos y caché KV unificada, o una recarga en cada cambio.
+3. **Imágenes:** cómo convertir la instalación de Qwen-Image 2.1 de PyLinkedin en un servicio compartido, según cómo la llama hoy PyLinkedin.
 
 ## Mediciones pendientes
 
