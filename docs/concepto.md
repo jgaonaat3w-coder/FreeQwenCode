@@ -4,13 +4,21 @@
 
 ## Qué buscamos
 
-Un entorno de programación agéntica lo más parecido posible a Claude Code, con tres condiciones:
+Un entorno de programación agéntica lo más parecido posible a Claude Code, con cuatro condiciones:
 
 - Modelos locales, en concreto los Qwen y Gemma instalados en la máquina de referencia.
 - Interfaz gráfica, no de terminal.
 - Contexto largo utilizable de verdad, no solo nominal.
+- **Detección automática de lo que hace falta en cada momento.** No hay un único uso, así que el entorno debe reconocer el tipo de trabajo y adaptarse sin que haya que configurarlo cada vez.
 
 "Lo más parecido posible" se refiere a la forma: el bucle agéntico, las herramientas para leer, editar, buscar y ejecutar, los permisos, la memoria de proyecto, los subagentes y la compactación del contexto. La calidad del modelo es otra cuestión. Con un 27B local, lo razonable es esperar un agente de una o dos generaciones atrás.
+
+### Usos previstos
+
+- **Programar con el usuario delante.** Cambios acotados, preguntas sobre el código y depuración, donde manda la latencia de cada turno.
+- **Misiones largas casi desatendidas.** Retomar lo pendiente, recorrer una cola de tareas o de deuda técnica y cerrar cada punto con lint, compilación y tests.
+- **Investigación sobre un corpus de texto.** Buscar, citar y verificar sobre el texto, con reglas epistémicas estrictas: decir «no lo sé» es preferible a inventar.
+- **Depender menos de servicios de pago.** Asumir en local las tareas que hoy se resuelven con Claude Code.
 
 ## Máquina y modelos de referencia
 
@@ -83,6 +91,42 @@ Su repositorio se archivó el 15 de mayo de 2026. El propio proyecto remite a Zo
 7. **Sin límites de tiempo hasta el primer token, y con progreso visible.** Antes de enviar, la interfaz estima el prefill a partir de los tokens que no están en caché y de la velocidad medida, y lo muestra.
 8. **El presupuesto de contexto se mide en tiempo, no en porcentaje.** Se compacta cuando el coste de reprocesar en frío o el frenazo de la generación superan un umbral, no al llegar a un porcentaje fijo de la ventana.
 9. **Retomar sin reprocesar.** Al pausar una tarea larga, el estado del hueco de inferencia se guarda en disco y se restaura al retomarla. `llama-server` lo permite. Ollama no lo expone.
+10. **Enrutar por tarea, no por mensaje.** El modelo solo cambia al empezar una tarea, al lanzar un subagente o después de compactar. Cambiarlo a mitad de conversación cuesta minutos de prefill. ArchonHub, el router anterior, lo sufría porque elegía modelo y ventana en cada petición.
+11. **Ningún modelo se carga ni se descarga en el camino crítico.** Los modelos que se usan a diario están residentes con su ventana fija. Cargar otro es una decisión deliberada en un límite de tarea.
+
+## Detección automática del modo
+
+### Modos
+
+El entorno no es un único agente con un único comportamiento. Es un conjunto de modos, y cada uno cambia las herramientas, la autonomía, la supervisión y la vista de la interfaz, no solo el modelo.
+
+| Modo | Cuándo | Qué cambia |
+|---|---|---|
+| Conversación | El usuario está delante y pide cambios acotados o hace preguntas | Modelo principal, respuestas breves, permiso antes de lo destructivo |
+| Misión | «Sigue con lo pendiente», una cola de tareas, trabajo de horas | Plan explícito, puntos de control, revisión por un supervisor en cada hito, aviso al terminar o al atascarse |
+| Investigación | Proyecto de corpus, preguntas sobre el texto | Herramientas de búsqueda y cita, cada afirmación con su fuente, incertidumbre explícita |
+| Consulta rápida | Preguntas cortas sin relación con la tarea en curso | Modelo rápido, sin tocar la conversación principal |
+
+### Cómo se detecta
+
+1. **Señales deterministas y baratas primero.** El proyecto abierto y su fichero de memoria, que puede declarar el modo por defecto. La existencia de una cola de tareas o de deuda. Los adjuntos, como imágenes.
+2. **Un clasificador pequeño para lo ambiguo.** `qwen3:4b` en su propio proceso decide en un segundo, sin tocar la caché del modelo principal.
+3. **El agente principal puede proponer un cambio de modo** a mitad de tarea, por ejemplo al descubrir que una pregunta se ha convertido en una misión.
+4. **La elección es visible y reversible.** La interfaz muestra qué modo ha elegido y por qué, y se cambia con un clic. Un error de clasificación silencioso es peor que una pregunta.
+
+### Subagentes como mecanismo de enrutado
+
+La forma de usar otro modelo sin romper la caché es delegar una subtarea completa. El subagente trabaja con otro modelo y su propio contexto, y devuelve un resultado corto que se añade al final de la conversación principal. Explorar el código, buscar en el corpus o ejecutar los tests y resumir el resultado son buenos candidatos.
+
+### Memoria: tres huecos
+
+| Hueco | Modelo | Ventana | Pesos | Caché KV en f16 | Caché KV en q8_0 |
+|---|---|---|---|---|---|
+| Fijo, nunca se desaloja | `qwen3.8:27b`, principal | 131.072 | 17 GB | 8,5 GB | 4,3 GB |
+| Intercambiable | MoE rápido para subagentes, o el supervisor de misiones | 65.536 | 18 GB | 6 GB | 3 GB |
+| Pequeño, fijo | `qwen3:4b`, clasificador y tareas auxiliares | 16.384 | 2,5 GB | 2,3 GB | 1,2 GB |
+
+Son estimaciones. En f16 suman unos 54 GB más los buffers de cálculo, que no caben en los 56 GB disponibles. Con la caché en q8_0 bajan a unos 46 GB, más buffers. El hueco intercambiable se recarga solo en límites de tarea, y perder su caché es barato porque cada subtarea empieza con contexto propio.
 
 ## Capa de inferencia
 
@@ -113,8 +157,10 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 
 1. **Base del harness:** adaptar OpenCode, usar una extensión de VS Code o escribir un harness propio.
 2. **Capa de inferencia del modelo principal:** Ollama o `llama-server` directo.
-3. **Interfaz:** VS Code, app de escritorio o editor vía ACP.
+3. **Interfaz:** VS Code, app de escritorio o editor vía ACP. Tiene que poder cambiar de vista según el modo.
 4. **Modelo principal:** `qwen3.8:27b`, denso, de más calidad y con prefill lento, frente a los MoE, previsiblemente mucho más rápidos en prefill.
+5. **Quién elige el modo:** reglas más clasificador al empezar cada tarea, o solo el modelo principal, como hace Claude Code con sus subagentes. La propuesta es combinar las dos cosas: reglas y clasificador para el modo de la tarea, y el agente principal para lanzar subagentes dentro de ella.
+6. **Relación con ArchonHub:** reutilizar su catálogo de mediciones y sus perfiles de tarea, o empezar de cero.
 
 ## Mediciones pendientes
 
@@ -124,3 +170,5 @@ Ninguna opción cumple hoy todos los principios. Lo que hay que averiguar de cad
 - Reutilización real de la caché entre turnos, comparando en el log los tokens del prompt con los tokens evaluados.
 - Guardar y restaurar la caché en disco con un modelo híbrido en `llama-server`.
 - Compactación al final de la conversación, para confirmar que solo procesa la instrucción.
+- Precisión del clasificador de modo sobre peticiones reales. Las tareas guardadas de Roo Code sirven como conjunto de prueba si se etiqueta a mano un centenar.
+- Convivencia de memoria: comprobar que Ollama tiene en cuenta la memoria que ocupa un `llama-server` externo y no sobrecarga la GPU.
